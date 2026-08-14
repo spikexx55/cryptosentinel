@@ -1,0 +1,5 @@
+window.renderPortfolio = function (holdings) {
+  const container = document.querySelector('#holdings');
+  if (!holdings.length) { container.innerHTML = '<div class="holding">No hay posiciones todavía.</div>'; return; }
+  container.innerHTML = holdings.map(item => `<article class="holding"><div><b>${item.symbol}</b><small class="ticker">${item.quantity} unidades</small></div><div><span class="label">PRECIO MEDIO</span><b>$${formatMoney(item.purchasePrice)}</b></div><div><span class="label">VALOR ACTUAL</span><b>$${formatMoney(item.value)}</b></div><div><span class="label">RESULTADO</span><b class="${item.profit >= 0 ? 'positive' : 'negative'}">${item.profit >= 0 ? '+' : ''}$${formatMoney(item.profit)}</b></div><div><span class="label">RENTABILIDAD</span><b class="${item.returnPercent >= 0 ? 'positive' : 'negative'}">${item.returnPercent >= 0 ? '+' : ''}${item.returnPercent.toFixed(2)}%</b></div><button class="remove" data-delete="${item.id}" title="Eliminar posición">×</button></article>`).join('');
+};

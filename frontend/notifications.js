@@ -1,0 +1,1 @@
+window.toast = function (message) { const element = document.querySelector('#toast'); element.textContent = message; element.style.transform = 'translateY(0)'; clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => { element.style.transform = 'translateY(100px)'; }, 3000); };
