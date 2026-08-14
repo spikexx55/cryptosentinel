@@ -1,4 +1,4 @@
-const { getSettings, saveSettings } = require('./config');
+const { getSettings, saveSettings } = require('./configStorage');
 
 async function readBody(req){ return new Promise((resolve,reject)=>{ let d=''; req.on('data',c=>d+=c); req.on('end',()=>resolve(JSON.parse(d))); req.on('error',reject); }); }
 
