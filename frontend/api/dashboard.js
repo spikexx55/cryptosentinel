@@ -1,7 +1,7 @@
 const { allMarkets, sentiment } = require('./lib/market');
 const indicators = require('./lib/indicators');
 const { score } = require('./lib/scoring');
-const { getSettings } = require('./config');
+const { getSettings, saveSettings } = require('./configStorage');
 
 module.exports = async (req, res) => {
   try {
