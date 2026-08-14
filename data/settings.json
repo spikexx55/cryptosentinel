@@ -1,9 +1,25 @@
 {
   "buyThreshold": 85,
   "sellThreshold": 85,
-  "favorites": ["BTC","ETH","SOL"],
+  "favorites": [
+    "BTC",
+    "ETH",
+    "SOL"
+  ],
   "risk": "moderate",
-  "notificationHours": { "start": "09:00", "end": "22:00" },
-  "weights": { "rsi": 15, "macd": 20, "ema": 15, "volume": 20, "btcTrend": 10, "fearGreed": 5, "momentum": 15 },
-  "notificationsEnabled": true
+  "notificationHours": {
+    "start": "09:00",
+    "end": "22:00"
+  },
+  "weights": {
+    "rsi": 15,
+    "macd": 20,
+    "ema": 15,
+    "volume": 20,
+    "btcTrend": 10,
+    "fearGreed": 5,
+    "momentum": 15
+  },
+  "notificationsEnabled": true,
+  "botToken": "8906710488:AAEYHSSkZX3g5EQvhaSwRv5ffIsPTicABkw"
 }
