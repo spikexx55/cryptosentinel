@@ -27,7 +27,7 @@ function showView(view) {
 }
 
 // -------------------------------------------------------------
-// MOTOR CLIENTE: BINANCE -> COINGECKO -> CRYPTOCOMPARE (SIN FALLBACK SIMULADO)
+// MOTOR CLIENTE: BINANCE -> COINGECKO -> CRYPTOCOMPARE
 // -------------------------------------------------------------
 const CG_IDS = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', XRP: 'ripple',
@@ -111,13 +111,13 @@ async function fetchLiveMarketData(symbols = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA',
     }
   } catch (e) {}
 
-  // Si fallan todas las fuentes, retornamos null
+  // Si fallan todas las fuentes reales, devolvemos null (sin placeholders)
   return null;
 }
 
 function renderMarket(data, config) {
   if (!data || !data.assets || data.assets.length === 0) {
-    $('#asset-list').innerHTML = `<div style="text-align:center; padding: 40px; color: #ff717c; font-weight: bold;">No logré conectar con el mercado</div>`;
+    $('#asset-list').innerHTML = `<div style="text-align:center; padding: 40px; color: #ff717c; font-weight: bold; font-family: monospace;">No logré conectar con el mercado</div>`;
     return;
   }
 
@@ -177,13 +177,14 @@ async function refresh() {
 
     state.config = config;
 
-    // Verificar si el backend nos devolvió un fallback simulado
-    const isFallback = !dashData || !dashData.assets || dashData.assets.some(a => a.source === 'fallback');
+    // Se consideran datos simulados si la respuesta no trae más de 3 assets o si algún asset no viene de Binance real
+    const isBackendReal = dashData && Array.isArray(dashData.assets) && dashData.assets.length > 3 && dashData.assets.every(a => a.source === 'Binance');
 
-    if (isFallback) {
-      // Intentar traer los datos reales en tiempo real directamente desde el navegador
+    if (!isBackendReal) {
+      // Intentar traer los datos reales en tiempo real directamente desde el cliente
       const liveData = await fetchLiveMarketData();
-      if (liveData && liveData.assets.length > 0) {
+      
+      if (liveData && liveData.assets && liveData.assets.length > 0) {
         state.dashboard = {
           ...(dashData || {}),
           assets: liveData.assets,
@@ -192,7 +193,7 @@ async function refresh() {
           updatedAt: Date.now()
         };
       } else {
-        // Ninguna de las 3 APIs respondió datos reales
+        // Ninguna API respondió con datos reales -> Se establece en null para que renderMarket muestre el mensaje de error
         state.dashboard = null;
       }
     } else {
