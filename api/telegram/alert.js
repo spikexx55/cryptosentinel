@@ -1,4 +1,5 @@
-const { getSettings } = require('../lib/configStorage'); // Ajusta la ruta a configStorage si tu carpeta lib está en otro nivel
+// ✅ La ruta correcta a configStorage desde api/telegram/ es '../configStorage'
+const { getSettings } = require('../configStorage');
 
 async function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -16,7 +17,6 @@ async function readBody(req) {
 }
 
 module.exports = async function handler(req, res) {
-  // Asegurar respuesta JSON
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method !== 'POST') {
@@ -26,9 +26,8 @@ module.exports = async function handler(req, res) {
   try {
     const settings = await getSettings();
 
-    // Comprobar que Telegram esté configurado
     if (!settings?.botToken || !settings?.chatId) {
-      return res.status(400).json({ error: 'Telegram no está completamente vinculado.' });
+      return res.status(400).json({ error: 'Telegram no está configurado.' });
     }
 
     const { symbol, action, score, price, reason } = await readBody(req);
@@ -61,7 +60,7 @@ module.exports = async function handler(req, res) {
     const data = await response.json();
 
     if (!data.ok) {
-      throw new Error(data.description || 'Error al comunicarse con Telegram');
+      throw new Error(data.description || 'Error en Telegram API');
     }
 
     return res.status(200).json({ ok: true });
