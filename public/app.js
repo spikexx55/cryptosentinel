@@ -109,11 +109,11 @@ async function fetchLiveMarketData() {
 }
 
 // -------------------------------------------------------------
-// CONTROLADOR DE AS AUTOMÁTICAS POR TELEGRAM
+// CONTROLADOR DE ALERTAS AUTOMÁTICAS POR TELEGRAM
 // -------------------------------------------------------------
-const sents = new Set();
+const sentAlerts = new Set();
 
-async function checkAndSendTelegrams(assets, settings, config) {
+async function checkAndSendTelegramAlerts(assets, settings, config) {
   if (!config?.notificationsEnabled) return;
 
   const buyThreshold = settings?.buyThreshold || 70;
@@ -127,9 +127,9 @@ async function checkAndSendTelegrams(assets, settings, config) {
 
     // 1. COMPRA: Aplica a todo el mercado
     if (buyScore >= buyThreshold) {
-      const Key = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
-      if (!sents.has(Key)) {
-        sents.add(Key);
+      const alertKey = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
+      if (!sentAlerts.has(alertKey)) {
+        sentAlerts.add(alertKey);
         api('/telegram', {
           method: 'POST',
           body: JSON.stringify({
@@ -225,7 +225,8 @@ async function refresh() {
 
     state.config = config;
 
-    const isBackendReal = dashData && Array.isArray(dashData.assets) && dashData.assets.length > 3 && dashData.assets.every(a => a.source === 'Binance');
+    // Si el backend responde con una lista de activos válida, la usamos directamente
+    const isBackendReal = dashData && Array.isArray(dashData.assets) && dashData.assets.length > 0;
 
     if (!isBackendReal) {
       const liveData = await fetchLiveMarketData();
@@ -248,7 +249,7 @@ async function refresh() {
     renderMarket(state.dashboard, config);
     if (state.dashboard?.settings) renderSettings(state.dashboard.settings, config);
 
-    // SE EVALÚAN LAS ALERTAS EN CADA REFRESH
+    // Evaluar alertas por Telegram
     if (state.dashboard?.assets) {
       checkAndSendTelegramAlerts(state.dashboard.assets, state.dashboard.settings, state.config);
     }
