@@ -85,7 +85,7 @@ async function fetchLiveMarketData() {
 }
 
 // -------------------------------------------------------------
-// CONTROLADOR DE ALERTAS AUTOMÁTICAS POR TELEGRAM
+// CONTROLADOR DE ALERTAS AUTOMÁTICAS POR TELEGRAM (Ruta directa con ?action=alert)
 // -------------------------------------------------------------
 const sentAlerts = new Set();
 
@@ -106,7 +106,7 @@ async function checkAndSendTelegramAlerts(assets, settings, config) {
       const alertKey = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
       if (!sentAlerts.has(alertKey)) {
         sentAlerts.add(alertKey);
-        api('/telegram/alert', {
+        api('/telegram?action=alert', {
           method: 'POST',
           body: JSON.stringify({
             symbol: asset.symbol,
@@ -124,7 +124,7 @@ async function checkAndSendTelegramAlerts(assets, settings, config) {
       const alertKey = `${asset.symbol}_SELL_${Math.floor(Date.now() / 1800000)}`;
       if (!sentAlerts.has(alertKey)) {
         sentAlerts.add(alertKey);
-        api('/telegram/alert', {
+        api('/telegram?action=alert', {
           method: 'POST',
           body: JSON.stringify({
             symbol: asset.symbol,
@@ -324,12 +324,13 @@ $('#settings-form')?.addEventListener('submit', async event => {
   }
 });
 
+// Eventos de Telegram apuntando a la ruta unificada /api/telegram?action=...
 $('#telegram-token-form')?.addEventListener('submit', async event => {
   event.preventDefault();
   const token = $('#telegram-token').value?.trim();
   if (!token) return typeof toast === 'function' && toast('Ingresa el token del bot.');
   try {
-    await api('/telegram/token', { method: 'POST', body: JSON.stringify({ token }) });
+    await api('/telegram?action=token', { method: 'POST', body: JSON.stringify({ token }) });
     if (typeof toast === 'function') toast('Token guardado');
     refresh();
   } catch (error) {
@@ -339,7 +340,7 @@ $('#telegram-token-form')?.addEventListener('submit', async event => {
 
 $('#pair-telegram')?.addEventListener('click', async () => {
   try {
-    await api('/telegram/pair', { method: 'POST' });
+    await api('/telegram?action=pair', { method: 'POST' });
     if (typeof toast === 'function') toast('Chat vinculado');
     refresh();
   } catch (error) {
@@ -349,7 +350,7 @@ $('#pair-telegram')?.addEventListener('click', async () => {
 
 $('#test-telegram')?.addEventListener('click', async () => {
   try {
-    await api('/telegram/test', { method: 'POST' });
+    await api('/telegram?action=test', { method: 'POST' });
     if (typeof toast === 'function') toast('Mensaje enviado');
   } catch (error) {
     if (typeof toast === 'function') toast(error.message);
