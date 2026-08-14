@@ -1,4 +1,3 @@
-// Importación corregida a la raíz de api/
 const { getSettings, saveSettings } = require('./configStorage');
 
 async function readBody(req) {
@@ -96,7 +95,7 @@ async function sendAlert(req, res) {
   }
 }
 
-// Router centralizado de Telegram
+// Router único para no crear más Serverless Functions en Vercel
 module.exports = async function handler(req, res) {
   const url = req.url || '';
   if (url.includes('/alert')) return sendAlert(req, res);
