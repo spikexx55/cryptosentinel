@@ -109,11 +109,11 @@ async function fetchLiveMarketData() {
 }
 
 // -------------------------------------------------------------
-// CONTROLADOR DE ALERTAS AUTOMÁTICAS POR TELEGRAM
+// CONTROLADOR DE AS AUTOMÁTICAS POR TELEGRAM
 // -------------------------------------------------------------
-const sentAlerts = new Set();
+const sents = new Set();
 
-async function checkAndSendTelegramAlerts(assets, settings, config) {
+async function checkAndSendTelegrams(assets, settings, config) {
   if (!config?.notificationsEnabled) return;
 
   const buyThreshold = settings?.buyThreshold || 70;
@@ -127,10 +127,10 @@ async function checkAndSendTelegramAlerts(assets, settings, config) {
 
     // 1. COMPRA: Aplica a todo el mercado
     if (buyScore >= buyThreshold) {
-      const alertKey = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
-      if (!sentAlerts.has(alertKey)) {
-        sentAlerts.add(alertKey);
-        api('/telegram/alert', {
+      const Key = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
+      if (!sents.has(Key)) {
+        sents.add(Key);
+        api('/telegram', {
           method: 'POST',
           body: JSON.stringify({
             symbol: asset.symbol,
