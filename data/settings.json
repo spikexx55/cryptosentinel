@@ -1,21 +1,21 @@
 {
-  "buyThreshold": 80,
+  "buyThreshold": 40,
   "sellThreshold": 60,
   "favorites": [
     "BTC",
     "ETH",
     "SOL"
   ],
-  "risk": "moderate",
+  "risk": null,
   "notificationHours": {
     "start": "09:00",
     "end": "22:00"
   },
   "weights": {
-    "rsi": 15,
-    "macd": 20,
-    "ema": 15,
-    "volume": 20,
+    "rsi": 25,
+    "macd": 25,
+    "ema": 25,
+    "volume": 25,
     "btcTrend": 10,
     "fearGreed": 5,
     "momentum": 15
