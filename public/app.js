@@ -27,13 +27,12 @@ function showView(view) {
 }
 
 // -------------------------------------------------------------
-// MOTOR CLIENTE DINÁMICO (30 Criptos con mayor volumen)
+// MOTOR CLIENTE DINÁMICO (30 Criptos Top de Binance en tiempo real)
 // -------------------------------------------------------------
 async function fetchLiveMarketData() {
-  // 1. Binance Dinámico
   try {
     const res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
-    if (!res.ok) throw new Error();
+    if (!res.ok) throw new Error('Binance error');
     const tickers = await res.json();
     
     const topPairs = tickers
@@ -79,33 +78,10 @@ async function fetchLiveMarketData() {
     }));
 
     return { assets, source: 'Binance' };
-  } catch (e) {}
-
-  // 2. Fallback CoinGecko Dinámico
-  try {
-    const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=30&page=1');
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-
-    const assets = data.map(coin => {
-      const symbol = coin.symbol.toUpperCase();
-      const price = coin.current_price;
-      const change24h = coin.price_change_percentage_24h || 0;
-      return {
-        symbol,
-        price,
-        change24h,
-        candles: [{ time: Date.now(), open: price, high: price, low: price, close: price, volume: coin.total_volume }],
-        source: 'CoinGecko',
-        scores: { buy: 50, sell: 50, volumeRatio: 1.0, reasons: { buy: { rsi: '—', macd: '—', ema: '—', volume: '—' } } },
-        indicators: { rsi: 50, macd: { histogram: 0 }, ema20: price, ema50: price, adx: 0, vwap: price, momentum: change24h }
-      };
-    });
-
-    return { assets, source: 'CoinGecko' };
-  } catch (e) {}
-
-  return null;
+  } catch (e) {
+    console.error('Error fetching live market:', e);
+    return null;
+  }
 }
 
 // -------------------------------------------------------------
@@ -130,7 +106,7 @@ async function checkAndSendTelegramAlerts(assets, settings, config) {
       const alertKey = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
       if (!sentAlerts.has(alertKey)) {
         sentAlerts.add(alertKey);
-        api('/telegram', {
+        api('/telegram/alert', {
           method: 'POST',
           body: JSON.stringify({
             symbol: asset.symbol,
@@ -218,12 +194,9 @@ function renderSettings(settings, config) {
 async function refresh() {
   try {
     $('#refresh').textContent = '⟳';
-    
-    // 1. Obtenemos la configuración del usuario (Telegram, umbrales, etc.)
     const config = await api('/config').catch(() => ({}));
     state.config = config;
 
-    // 2. Traemos el mercado EN TIEMPO REAL directamente (30 criptos top de Binance)
     const liveData = await fetchLiveMarketData();
 
     if (liveData && liveData.assets && liveData.assets.length > 0) {
@@ -241,27 +214,9 @@ async function refresh() {
       state.dashboard = null;
     }
 
-    // 3. Renderizamos la interfaz
     renderMarket(state.dashboard, config);
     if (state.dashboard?.settings) renderSettings(state.dashboard.settings, config);
 
-    // 4. Evaluamos y enviamos las alertas automáticas a Telegram
-    if (state.dashboard?.assets) {
-      checkAndSendTelegramAlerts(state.dashboard.assets, state.dashboard.settings, state.config);
-    }
-
-  } catch (error) {
-    if (typeof toast === 'function') toast('No logré conectar con el mercado');
-    renderMarket(null, state.config);
-  } finally {
-    $('#refresh').textContent = '↻';
-  }
-}
-
-    renderMarket(state.dashboard, config);
-    if (state.dashboard?.settings) renderSettings(state.dashboard.settings, config);
-
-    // Evaluar alertas por Telegram
     if (state.dashboard?.assets) {
       checkAndSendTelegramAlerts(state.dashboard.assets, state.dashboard.settings, state.config);
     }
