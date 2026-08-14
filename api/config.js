@@ -1,4 +1,4 @@
-const { getSettings, saveSettings } = require('./config');
+const { getSettings, saveSettings } = require('./configService');
 
 module.exports = async (req, res) => {
   try {
