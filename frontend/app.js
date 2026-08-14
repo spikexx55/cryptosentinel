@@ -74,11 +74,15 @@ async function refresh() {
 async function showAsset(symbol) {
   const asset = state.dashboard.assets.find(item => item.symbol === symbol);
   if (!asset) return;
-  const ind = asset.indicators;
-  $('#asset-detail').innerHTML = `<p class="eyebrow">${asset.symbol}/USD · ANÁLISIS TÉCNICO</p><h2>${asset.symbol} <span class="mono">$${formatMoney(asset.price)}</span></h2><canvas class="chart"></canvas><div class="detail-grid"><div class="metric"><span>SCORE COMPRA</span><b class="positive">${asset.scores.buy} · ${riskText(asset.scores.buy)}</b></div><div class="metric"><span>SCORE VENTA</span><b class="negative">${asset.scores.sell} · ${riskText(asset.scores.sell)}</b></div><div class="metric"><span>RSI (14)</span><b>${ind.rsi?.toFixed(1) ?? '—'}</b></div><div class="metric"><span>MACD</span><b>${ind.macd?.histogram?.toFixed(3) ?? '—'}</b></div><div class="metric"><span>EMA 20 / 50</span><b>${formatMoney(ind.ema20)} / ${formatMoney(ind.ema50)}</b></div><div class="metric"><span>ADX</span><b>${ind.adx?.toFixed(1) ?? '—'}</b></div><div class="metric"><span>VWAP</span><b>$${formatMoney(ind.vwap)}</b></div><div class="metric"><span>MOMENTUM</span><b>${ind.momentum?.toFixed(2) ?? '—'}%</b></div><div class="metric"><span>VOLUMEN REL.</span><b>${asset.scores.volumeRatio.toFixed(2)}×</b></div></div><h3>Explicación del score</h3><p class="mono" style="color:#8f98a7;font-size:12px">Compra: RSI ${asset.scores.reasons.buy.rsi}, MACD ${asset.scores.reasons.buy.macd}, tendencia EMA ${asset.scores.reasons.buy.ema}, volumen ${asset.scores.reasons.buy.volume}. Los pesos se ajustan desde Configuración.</p>`;
+  const ind = asset.indicators || {};
+  const scores = asset.scores || {};
+  const buyReasons = scores.reasons?.buy || {};
+
+  $('#asset-detail').innerHTML = `<p class="eyebrow">${asset.symbol}/USD · ANÁLISIS TÉCNICO</p><h2>${asset.symbol} <span class="mono">$${formatMoney(asset.price)}</span></h2><canvas class="chart"></canvas><div class="detail-grid"><div class="metric"><span>SCORE COMPRA</span><b class="positive">${scores.buy ?? 0} · ${riskText(scores.buy ?? 0)}</b></div><div class="metric"><span>SCORE VENTA</span><b class="negative">${scores.sell ?? 0} · ${riskText(scores.sell ?? 0)}</b></div><div class="metric"><span>RSI (14)</span><b>${ind.rsi?.toFixed(1) ?? '—'}</b></div><div class="metric"><span>MACD</span><b>${ind.macd?.histogram?.toFixed(3) ?? '—'}</b></div><div class="metric"><span>EMA 20 / 50</span><b>${formatMoney(ind.ema20)} / ${formatMoney(ind.ema50)}</b></div><div class="metric"><span>ADX</span><b>${ind.adx?.toFixed(1) ?? '—'}</b></div><div class="metric"><span>VWAP</span><b>$${formatMoney(ind.vwap)}</b></div><div class="metric"><span>MOMENTUM</span><b>${ind.momentum?.toFixed(2) ?? '—'}%</b></div><div class="metric"><span>VOLUMEN REL.</span><b>${scores.volumeRatio?.toFixed(2) ?? '1.00'}×</b></div></div><h3>Explicación del score</h3><p class="mono" style="color:#8f98a7;font-size:12px">Compra: RSI ${buyReasons.rsi ?? '—'}, MACD ${buyReasons.macd ?? '—'}, tendencia EMA ${buyReasons.ema ?? '—'}, volumen ${buyReasons.volume ?? '—'}. Los pesos se ajustan desde Configuración.</p>`;
+  
   const dialog = $('#asset-dialog');
   dialog.showModal();
-  drawPriceChart(dialog.querySelector('canvas'), asset.candles, asset.change24h >= 0 ? '#57dbac' : '#ff717c');
+  drawPriceChart(dialog.querySelector('canvas'), asset.candles || [], asset.change24h >= 0 ? '#57dbac' : '#ff717c');
 }
 
 document.addEventListener('click', async event => {
