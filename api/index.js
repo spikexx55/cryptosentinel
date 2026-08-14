@@ -8,6 +8,8 @@ module.exports = async (req, res) => {
 
   if (p === '/api/dashboard' && req.method === 'GET') return dashboard(req, res);
   if (p === '/api/config') return configHandler(req, res);
+  
+  // Redirige /api/telegram/alert, /api/telegram/test, /api/telegram/token a telegram.js
   if (p.startsWith('/api/telegram')) return telegram(req, res);
 
   res.statusCode = 404; 
