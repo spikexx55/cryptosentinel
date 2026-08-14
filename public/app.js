@@ -218,33 +218,45 @@ function renderSettings(settings, config) {
 async function refresh() {
   try {
     $('#refresh').textContent = '⟳';
-    const [dashData, config] = await Promise.all([
-      api('/dashboard').catch(() => null),
-      api('/config').catch(() => null)
-    ]);
-
+    
+    // 1. Obtenemos la configuración del usuario (Telegram, umbrales, etc.)
+    const config = await api('/config').catch(() => ({}));
     state.config = config;
 
-    // Si el backend responde con una lista de activos válida, la usamos directamente
-    const isBackendReal = dashData && Array.isArray(dashData.assets) && dashData.assets.length > 0;
+    // 2. Traemos el mercado EN TIEMPO REAL directamente (30 criptos top de Binance)
+    const liveData = await fetchLiveMarketData();
 
-    if (!isBackendReal) {
-      const liveData = await fetchLiveMarketData();
-      
-      if (liveData && liveData.assets && liveData.assets.length > 0) {
-        state.dashboard = {
-          ...(dashData || {}),
-          assets: liveData.assets,
-          sentiment: dashData?.sentiment || { value: 50, label: 'Neutral' },
-          settings: dashData?.settings || { buyThreshold: 70, sellThreshold: 70, weights: { rsi: 25, macd: 25, ema: 25, volume: 25 } },
-          updatedAt: Date.now()
-        };
-      } else {
-        state.dashboard = null;
-      }
+    if (liveData && liveData.assets && liveData.assets.length > 0) {
+      state.dashboard = {
+        assets: liveData.assets,
+        sentiment: { value: 50, label: 'Neutral' },
+        settings: {
+          buyThreshold: config?.buyThreshold || 70,
+          sellThreshold: config?.sellThreshold || 70,
+          weights: { rsi: 25, macd: 25, ema: 25, volume: 25 }
+        },
+        updatedAt: Date.now()
+      };
     } else {
-      state.dashboard = dashData;
+      state.dashboard = null;
     }
+
+    // 3. Renderizamos la interfaz
+    renderMarket(state.dashboard, config);
+    if (state.dashboard?.settings) renderSettings(state.dashboard.settings, config);
+
+    // 4. Evaluamos y enviamos las alertas automáticas a Telegram
+    if (state.dashboard?.assets) {
+      checkAndSendTelegramAlerts(state.dashboard.assets, state.dashboard.settings, state.config);
+    }
+
+  } catch (error) {
+    if (typeof toast === 'function') toast('No logré conectar con el mercado');
+    renderMarket(null, state.config);
+  } finally {
+    $('#refresh').textContent = '↻';
+  }
+}
 
     renderMarket(state.dashboard, config);
     if (state.dashboard?.settings) renderSettings(state.dashboard.settings, config);
