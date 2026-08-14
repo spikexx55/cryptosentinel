@@ -8,28 +8,35 @@ const api = async (url, options = {}) => {
   }
   return response.status === 204 ? null : response.json();
 };
+
 function formatMoney(value) {
+  if (value === undefined || value === null || isNaN(value)) return '0.00';
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: value < 2 ? 4 : 2 }).format(value);
 }
+
 function riskText(score) {
   return score >= 85 ? 'Muy alta' : score >= 65 ? 'Alta' : score >= 45 ? 'Media' : 'Baja';
 }
+
 function showView(view) {
   document.querySelectorAll('.view,.nav').forEach(element => element.classList.remove('active'));
   $(`#${view}`).classList.add('active');
   document.querySelector(`.nav[data-view="${view}"]`).classList.add('active');
   $('#title').textContent = view === 'market' ? 'Oportunidades' : 'Configuración';
 }
+
 function renderMarket(data, config) {
   const ownedCount = (config?.ownedSymbols || []).length;
-  $('#fear').textContent = `${data.sentiment.value}/100`;
-  $('#fear-label').textContent = data.sentiment.label;
-  $('#signals').textContent = data.assets.filter(asset => asset.scores.buy >= data.settings.buyThreshold || asset.scores.sell >= data.settings.sellThreshold).length;
+  $('#fear').textContent = `${data.sentiment?.value ?? 50}/100`;
+  $('#fear-label').textContent = data.sentiment?.label ?? 'Neutral';
+  $('#signals').textContent = (data.assets || []).filter(asset => asset.scores?.buy >= data.settings?.buyThreshold || asset.scores?.sell >= data.settings?.sellThreshold).length;
   $('#owned-count').textContent = ownedCount;
-  $('#updated').textContent = `Actualizado ${new Date(data.updatedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+  $('#updated').textContent = `Actualizado ${new Date(data.updatedAt || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+  
   const query = state.search.trim().toLowerCase();
   const owned = new Set((config?.ownedSymbols || []).map(symbol => symbol.toUpperCase()));
-  const filtered = data.assets.filter(asset => !query || asset.symbol.toLowerCase().includes(query));
+  const filtered = (data.assets || []).filter(asset => !query || asset.symbol.toLowerCase().includes(query));
+  
   const sorted = [...filtered].sort((a, b) => {
     switch (state.sort) {
       case 'nameAsc':
@@ -37,26 +44,34 @@ function renderMarket(data, config) {
       case 'nameDesc':
         return b.symbol.localeCompare(a.symbol);
       case 'scoreSell':
-        return b.scores.sell - a.scores.sell || b.scores.buy - a.scores.buy || a.symbol.localeCompare(b.symbol);
+        return (b.scores?.sell || 0) - (a.scores?.sell || 0) || (b.scores?.buy || 0) - (a.scores?.buy || 0) || a.symbol.localeCompare(b.symbol);
       case 'scoreBuy':
       default:
-        return b.scores.buy - a.scores.buy || b.scores.sell - a.scores.sell || a.symbol.localeCompare(b.symbol);
+        return (b.scores?.buy || 0) - (a.scores?.buy || 0) || (b.scores?.sell || 0) - (a.scores?.sell || 0) || a.symbol.localeCompare(b.symbol);
     }
   });
+
   $('#asset-list').innerHTML = sorted.map(asset => {
     const checked = owned.has(asset.symbol) ? 'checked' : '';
-    return `<div class="asset" data-symbol="${asset.symbol}"><div><span class="symbol">${asset.symbol}</span><span class="ticker">${asset.symbol}/USD</span></div><div><span class="label">PRECIO</span><span class="mono">$${formatMoney(asset.price)}</span></div><div class="hide-mobile"><span class="label">24 H</span><span class="mono ${asset.change24h >= 0 ? 'positive' : 'negative'}">${asset.change24h >= 0 ? '+' : ''}${asset.change24h.toFixed(2)}%</span></div><div><span class="label">COMPRA</span><span class="score ${asset.scores.buy >= data.settings.buyThreshold ? 'hot' : ''}">${asset.scores.buy}</span></div><div><span class="label">VENTA</span><span class="score ${asset.scores.sell >= data.settings.sellThreshold ? 'danger' : ''}">${asset.scores.sell}</span></div><div class="asset-checkbox"><label><input class="owned-toggle" type="checkbox" data-symbol="${asset.symbol}" ${checked}> Tengo</label></div></div>`;
+    const change = asset.change24h || 0;
+    const buyScore = asset.scores?.buy ?? 0;
+    const sellScore = asset.scores?.sell ?? 0;
+    
+    return `<div class="asset" data-symbol="${asset.symbol}"><div><span class="symbol">${asset.symbol}</span><span class="ticker">${asset.symbol}/USD</span></div><div><span class="label">PRECIO</span><span class="mono">$${formatMoney(asset.price)}</span></div><div class="hide-mobile"><span class="label">24 H</span><span class="mono ${change >= 0 ? 'positive' : 'negative'}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</span></div><div><span class="label">COMPRA</span><span class="score ${buyScore >= (data.settings?.buyThreshold || 70) ? 'hot' : ''}">${buyScore}</span></div><div><span class="label">VENTA</span><span class="score ${sellScore >= (data.settings?.sellThreshold || 70) ? 'danger' : ''}">${sellScore}</span></div><div class="asset-checkbox"><label><input class="owned-toggle" type="checkbox" data-symbol="${asset.symbol}" ${checked}> Tengo</label></div></div>`;
   }).join('');
 }
+
 function renderSettings(settings, config) {
   const form = $('#settings-form');
-  form.buyThreshold.value = settings.buyThreshold;
-  form.sellThreshold.value = settings.sellThreshold;
-  form.risk.value = settings.risk;
+  if (!settings) return;
+  form.buyThreshold.value = settings.buyThreshold || 70;
+  form.sellThreshold.value = settings.sellThreshold || 70;
+  form.risk.value = settings.risk || 'medium';
   form.notificationsEnabled.checked = Boolean(config?.notificationsEnabled);
-  $('#weights').innerHTML = Object.entries(settings.weights).map(([key, value]) => `<label>${key}<input name="weight-${key}" type="number" min="0" max="100" value="${value}"></label>`).join('');
+  $('#weights').innerHTML = Object.entries(settings.weights || {}).map(([key, value]) => `<label>${key}<input name="weight-${key}" type="number" min="0" max="100" value="${value}"></label>`).join('');
   $('#telegram-status').textContent = config?.botConfigured && config?.chatConfigured ? 'Telegram conectado' : config?.botConfigured ? 'Token guardado. Vincula el chat.' : 'No conectado';
 }
+
 async function refresh() {
   try {
     $('#refresh').textContent = '⟳';
@@ -66,13 +81,14 @@ async function refresh() {
     renderMarket(data, config);
     renderSettings(data.settings, config);
   } catch (error) {
-    toast(error.message);
+    if (typeof toast === 'function') toast(error.message);
   } finally {
     $('#refresh').textContent = '↻';
   }
 }
+
 async function showAsset(symbol) {
-  const asset = state.dashboard.assets.find(item => item.symbol === symbol);
+  const asset = state.dashboard?.assets?.find(item => item.symbol === symbol);
   if (!asset) return;
   const ind = asset.indicators || {};
   const scores = asset.scores || {};
@@ -82,7 +98,10 @@ async function showAsset(symbol) {
   
   const dialog = $('#asset-dialog');
   dialog.showModal();
-  drawPriceChart(dialog.querySelector('canvas'), asset.candles || [], asset.change24h >= 0 ? '#57dbac' : '#ff717c');
+  if (typeof drawPriceChart === 'function') {
+    const validCandles = (asset.candles || []).filter(c => c && typeof c.close === 'number');
+    drawPriceChart(dialog.querySelector('canvas'), validCandles, (asset.change24h || 0) >= 0 ? '#57dbac' : '#ff717c');
+  }
 }
 
 document.addEventListener('click', async event => {
@@ -103,44 +122,42 @@ document.addEventListener('change', async event => {
   try {
     state.config = await api('/config', { method: 'PUT', body: JSON.stringify({ ownedSymbols: [...owned] }) });
     renderMarket(state.dashboard, state.config);
-    toast('Estado guardado');
+    if (typeof toast === 'function') toast('Estado guardado');
   } catch (error) {
-    toast(error.message);
+    if (typeof toast === 'function') toast(error.message);
   }
 });
 
-$('#search-input').addEventListener('input', event => {
+$('#search-input')?.addEventListener('input', event => {
   state.search = event.target.value;
   if (state.dashboard && state.config) renderMarket(state.dashboard, state.config);
 });
 
-$('#sort-select').addEventListener('change', event => {
+$('#sort-select')?.addEventListener('change', event => {
   state.sort = event.target.value;
   if (state.dashboard && state.config) renderMarket(state.dashboard, state.config);
 });
 
-$('#refresh').addEventListener('click', refresh);
+$('#refresh')?.addEventListener('click', refresh);
 
-$('#stop-all').addEventListener('click', async () => {
+$('#stop-all')?.addEventListener('click', async () => {
   if (!confirm('Detener todo: la aplicación se cerrará por completo. ¿Continuar?')) return;
   try {
     await api('/shutdown', { method: 'POST' });
-    toast('Deteniendo la aplicación...');
-    // Allow server to shutdown and then attempt to close the window/tab
+    if (typeof toast === 'function') toast('Deteniendo la aplicación...');
     setTimeout(() => {
       try { window.close(); } catch (e) { /* ignored */ }
-      // as a fallback, navigate to about:blank
       setTimeout(() => { location.href = 'about:blank'; }, 300);
     }, 800);
   } catch (error) {
-    toast(error.message);
+    if (typeof toast === 'function') toast(error.message);
   }
 });
 
-$('#settings-form').addEventListener('submit', async event => {
+$('#settings-form')?.addEventListener('submit', async event => {
   event.preventDefault();
   const form = new FormData(event.target);
-  const weights = Object.fromEntries(Object.keys(state.dashboard.settings.weights).map(key => [key, Number(form.get(`weight-${key}`))]));
+  const weights = Object.fromEntries(Object.keys(state.dashboard?.settings?.weights || {}).map(key => [key, Number(form.get(`weight-${key}`))]));
   const data = {
     buyThreshold: Number(form.get('buyThreshold')),
     sellThreshold: Number(form.get('sellThreshold')),
@@ -149,43 +166,43 @@ $('#settings-form').addEventListener('submit', async event => {
     weights
   };
   try {
-    await api('/settings', { method: 'PUT', body: JSON.stringify(data) });
-    toast('Configuración guardada');
+    await api('/config', { method: 'PUT', body: JSON.stringify(data) });
+    if (typeof toast === 'function') toast('Configuración guardada');
     refresh();
   } catch (error) {
-    toast(error.message);
+    if (typeof toast === 'function') toast(error.message);
   }
 });
 
-$('#telegram-token-form').addEventListener('submit', async event => {
+$('#telegram-token-form')?.addEventListener('submit', async event => {
   event.preventDefault();
   const token = $('#telegram-token').value.trim();
-  if (!token) return toast('Ingresa el token del bot.');
+  if (!token) return typeof toast === 'function' && toast('Ingresa el token del bot.');
   try {
     await api('/telegram/token', { method: 'POST', body: JSON.stringify({ token }) });
-    toast('Token guardado');
+    if (typeof toast === 'function') toast('Token guardado');
     refresh();
   } catch (error) {
-    toast(error.message);
+    if (typeof toast === 'function') toast(error.message);
   }
 });
 
-$('#pair-telegram').addEventListener('click', async () => {
+$('#pair-telegram')?.addEventListener('click', async () => {
   try {
     await api('/telegram/pair', { method: 'POST' });
-    toast('Chat vinculado');
+    if (typeof toast === 'function') toast('Chat vinculado');
     refresh();
   } catch (error) {
-    toast(error.message);
+    if (typeof toast === 'function') toast(error.message);
   }
 });
 
-$('#test-telegram').addEventListener('click', async () => {
+$('#test-telegram')?.addEventListener('click', async () => {
   try {
     await api('/telegram/test', { method: 'POST' });
-    toast('Mensaje enviado');
+    if (typeof toast === 'function') toast('Mensaje enviado');
   } catch (error) {
-    toast(error.message);
+    if (typeof toast === 'function') toast(error.message);
   }
 });
 
