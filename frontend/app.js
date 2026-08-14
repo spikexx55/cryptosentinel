@@ -1,7 +1,7 @@
 const state = { dashboard: null, config: null, search: '', sort: 'scoreBuy' };
 const $ = selector => document.querySelector(selector);
 const api = async (url, options = {}) => {
-  const response = await fetch(`/api${url}`, { headers: { 'Content-Type': 'application/json' }, ...options });
+  const response = await fetch(url.startsWith('/api') ? url : `/api${url}`, { headers: { 'Content-Type': 'application/json' }, ...options });
   if (!response.ok && response.status !== 204) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.error || 'Error de conexión');
