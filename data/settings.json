@@ -1,6 +1,6 @@
 {
-  "buyThreshold": 40,
-  "sellThreshold": 40,
+  "buyThreshold": 30,
+  "sellThreshold": 30,
   "favorites": [
     "BTC",
     "ETH",
