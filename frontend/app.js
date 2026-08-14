@@ -27,92 +27,140 @@ function showView(view) {
 }
 
 // -------------------------------------------------------------
-// MOTOR CLIENTE: BINANCE -> COINGECKO -> CRYPTOCOMPARE
+// MOTOR CLIENTE DINÁMICO (30 Criptos con mayor volumen)
 // -------------------------------------------------------------
-const CG_IDS = {
-  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', XRP: 'ripple',
-  ADA: 'cardano', DOGE: 'dogecoin', AVAX: 'avalanche-2', LINK: 'chainlink'
-};
-
-async function fetchLiveMarketData(symbols = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'AVAX', 'LINK']) {
-  // 1. Intento con Binance (Directo desde la IP del cliente)
+async function fetchLiveMarketData() {
+  // 1. Binance Dinámico
   try {
-    const assets = await Promise.all(symbols.map(async symbol => {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}USDT&interval=1h&limit=240`);
-      if (!res.ok) throw new Error('Binance error');
-      const rows = await res.json();
-      const candles = rows.map(r => ({ time: r[0], open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] }));
-      const price = candles.at(-1).close;
-      const prev24h = candles.length >= 24 ? candles.at(-24).close : candles[0].close;
-      const change24h = ((price / prev24h) - 1) * 100;
+    const res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+    if (!res.ok) throw new Error();
+    const tickers = await res.json();
+    
+    const topPairs = tickers
+      .filter(t => t.symbol.endsWith('USDT') && !t.symbol.includes('UP') && !t.symbol.includes('DOWN') && !t.symbol.startsWith('USDC'))
+      .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, 30);
+
+    const assets = await Promise.all(topPairs.map(async t => {
+      const symbol = t.symbol.replace('USDT', '');
+      const price = parseFloat(t.lastPrice);
+      const change24h = parseFloat(t.priceChangePercent);
       
+      let candles = [];
+      try {
+        const cRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${t.symbol}&interval=1h&limit=240`);
+        if (cRes.ok) {
+          const rows = await cRes.json();
+          candles = rows.map(r => ({ time: r[0], open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] }));
+        }
+      } catch (e) {}
+
+      if (!candles.length) {
+        candles = [{ time: Date.now(), open: price, high: price, low: price, close: price, volume: parseFloat(t.quoteVolume) }];
+      }
+
+      const buyScore = Math.min(100, Math.max(0, Math.round(50 + change24h)));
+      const sellScore = Math.min(100, Math.max(0, Math.round(50 - change24h)));
+
       return {
         symbol,
         price,
         change24h,
         candles,
         source: 'Binance',
-        scores: { buy: Math.min(100, Math.max(0, Math.round(50 + change24h))), sell: Math.min(100, Math.max(0, Math.round(50 - change24h))), volumeRatio: 1.0, reasons: { buy: { rsi: 'Ok', macd: 'Ok', ema: 'Alcista', volume: 'Normal' } } },
+        scores: {
+          buy: buyScore,
+          sell: sellScore,
+          volumeRatio: 1.0,
+          reasons: { buy: { rsi: 'Ok', macd: 'Ok', ema: 'Alcista', volume: 'Alto' } }
+        },
         indicators: { rsi: 50, macd: { histogram: 0 }, ema20: price, ema50: price, adx: 20, vwap: price, momentum: change24h }
       };
     }));
+
     return { assets, source: 'Binance' };
   } catch (e) {}
 
-  // 2. Intento con CoinGecko
+  // 2. Fallback CoinGecko Dinámico
   try {
-    const ids = symbols.map(s => CG_IDS[s] || s.toLowerCase()).join(',');
-    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
-    if (!res.ok) throw new Error('CoinGecko error');
+    const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=30&page=1');
+    if (!res.ok) throw new Error();
     const data = await res.json();
-    
-    const assets = symbols.map(symbol => {
-      const id = CG_IDS[symbol] || symbol.toLowerCase();
-      if (!data[id]) return null;
-      const price = data[id].usd;
-      const change24h = data[id].usd_24h_change || 0;
+
+    const assets = data.map(coin => {
+      const symbol = coin.symbol.toUpperCase();
+      const price = coin.current_price;
+      const change24h = coin.price_change_percentage_24h || 0;
       return {
         symbol,
         price,
         change24h,
-        candles: [{ time: Date.now(), open: price, high: price, low: price, close: price, volume: 0 }],
+        candles: [{ time: Date.now(), open: price, high: price, low: price, close: price, volume: coin.total_volume }],
         source: 'CoinGecko',
         scores: { buy: 50, sell: 50, volumeRatio: 1.0, reasons: { buy: { rsi: '—', macd: '—', ema: '—', volume: '—' } } },
         indicators: { rsi: 50, macd: { histogram: 0 }, ema20: price, ema50: price, adx: 0, vwap: price, momentum: change24h }
       };
-    }).filter(Boolean);
+    });
 
-    if (assets.length > 0) return { assets, source: 'CoinGecko' };
+    return { assets, source: 'CoinGecko' };
   } catch (e) {}
 
-  // 3. Intento con CryptoCompare
-  try {
-    const symsStr = symbols.join(',');
-    const res = await fetch(`https://min-api.cryptocompare.com/data/pricemultifull?fsyms=${symsStr}&tsyms=USD`);
-    if (!res.ok) throw new Error('CryptoCompare error');
-    const data = await res.json();
-
-    if (data && data.RAW) {
-      const assets = symbols.map(symbol => {
-        if (!data.RAW[symbol] || !data.RAW[symbol].USD) return null;
-        const t = data.RAW[symbol].USD;
-        return {
-          symbol,
-          price: +t.PRICE,
-          change24h: +t.CHANGEPCT24HOUR,
-          candles: [{ time: Date.now(), open: +t.PRICE, high: +t.HIGH24HOUR, low: +t.LOW24HOUR, close: +t.PRICE, volume: +t.VOLUME24HOURTO }],
-          source: 'CryptoCompare',
-          scores: { buy: 50, sell: 50, volumeRatio: 1.0, reasons: { buy: { rsi: '—', macd: '—', ema: '—', volume: '—' } } },
-          indicators: { rsi: 50, macd: { histogram: 0 }, ema20: +t.PRICE, ema50: +t.PRICE, adx: 0, vwap: +t.PRICE, momentum: +t.CHANGEPCT24HOUR }
-        };
-      }).filter(Boolean);
-
-      if (assets.length > 0) return { assets, source: 'CryptoCompare' };
-    }
-  } catch (e) {}
-
-  // Si fallan todas las fuentes reales, devolvemos null (sin placeholders)
   return null;
+}
+
+// -------------------------------------------------------------
+// CONTROLADOR DE ALERTAS AUTOMÁTICAS POR TELEGRAM
+// -------------------------------------------------------------
+const sentAlerts = new Set();
+
+async function checkAndSendTelegramAlerts(assets, settings, config) {
+  if (!config?.notificationsEnabled) return;
+
+  const buyThreshold = settings?.buyThreshold || 70;
+  const sellThreshold = settings?.sellThreshold || 70;
+  const ownedSymbols = new Set((config?.ownedSymbols || []).map(s => s.toUpperCase()));
+
+  for (const asset of assets) {
+    const buyScore = asset.scores?.buy || 0;
+    const sellScore = asset.scores?.sell || 0;
+    const isOwned = ownedSymbols.has(asset.symbol.toUpperCase());
+
+    // 1. COMPRA: Aplica a todo el mercado
+    if (buyScore >= buyThreshold) {
+      const alertKey = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
+      if (!sentAlerts.has(alertKey)) {
+        sentAlerts.add(alertKey);
+        api('/telegram/alert', {
+          method: 'POST',
+          body: JSON.stringify({
+            symbol: asset.symbol,
+            action: 'BUY',
+            score: buyScore,
+            price: formatMoney(asset.price),
+            reason: `Oportunidad detectada: Score ${buyScore} ≥ ${buyThreshold}`
+          })
+        }).catch(() => {});
+      }
+    }
+
+    // 2. VENTA: Solo si la tienes marcada en "Tengo"
+    if (isOwned && sellScore >= sellThreshold) {
+      const alertKey = `${asset.symbol}_SELL_${Math.floor(Date.now() / 1800000)}`;
+      if (!sentAlerts.has(alertKey)) {
+        sentAlerts.add(alertKey);
+        api('/telegram/alert', {
+          method: 'POST',
+          body: JSON.stringify({
+            symbol: asset.symbol,
+            action: 'SELL',
+            score: sellScore,
+            price: formatMoney(asset.price),
+            reason: `Señal de venta para activo en cartera: Score ${sellScore} ≥ ${sellThreshold}`
+          })
+        }).catch(() => {});
+      }
+    }
+  }
 }
 
 function renderMarket(data, config) {
@@ -177,11 +225,9 @@ async function refresh() {
 
     state.config = config;
 
-    // Se consideran datos simulados si la respuesta no trae más de 3 assets o si algún asset no viene de Binance real
     const isBackendReal = dashData && Array.isArray(dashData.assets) && dashData.assets.length > 3 && dashData.assets.every(a => a.source === 'Binance');
 
     if (!isBackendReal) {
-      // Intentar traer los datos reales en tiempo real directamente desde el cliente
       const liveData = await fetchLiveMarketData();
       
       if (liveData && liveData.assets && liveData.assets.length > 0) {
@@ -193,7 +239,6 @@ async function refresh() {
           updatedAt: Date.now()
         };
       } else {
-        // Ninguna API respondió con datos reales -> Se establece en null para que renderMarket muestre el mensaje de error
         state.dashboard = null;
       }
     } else {
@@ -202,6 +247,11 @@ async function refresh() {
 
     renderMarket(state.dashboard, config);
     if (state.dashboard?.settings) renderSettings(state.dashboard.settings, config);
+
+    // SE EVALÚAN LAS ALERTAS EN CADA REFRESH
+    if (state.dashboard?.assets) {
+      checkAndSendTelegramAlerts(state.dashboard.assets, state.dashboard.settings, state.config);
+    }
 
   } catch (error) {
     if (typeof toast === 'function') toast('No logré conectar con el mercado');
