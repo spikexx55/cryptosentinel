@@ -130,7 +130,7 @@ async function checkAndSendTelegramAlerts(assets, settings, config) {
       const alertKey = `${asset.symbol}_BUY_${Math.floor(Date.now() / 1800000)}`;
       if (!sentAlerts.has(alertKey)) {
         sentAlerts.add(alertKey);
-        api('/telegram/alert', {
+        api('/telegram', {
           method: 'POST',
           body: JSON.stringify({
             symbol: asset.symbol,
