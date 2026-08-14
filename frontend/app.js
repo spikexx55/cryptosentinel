@@ -225,7 +225,8 @@ async function refresh() {
 
     state.config = config;
 
-    const isBackendReal = dashData && Array.isArray(dashData.assets) && dashData.assets.length > 3 && dashData.assets.every(a => a.source === 'Binance');
+    // Si el backend responde con una lista de activos válida, la usamos directamente
+    const isBackendReal = dashData && Array.isArray(dashData.assets) && dashData.assets.length > 0;
 
     if (!isBackendReal) {
       const liveData = await fetchLiveMarketData();
@@ -248,7 +249,7 @@ async function refresh() {
     renderMarket(state.dashboard, config);
     if (state.dashboard?.settings) renderSettings(state.dashboard.settings, config);
 
-    // SE EVALÚAN LAS ALERTAS EN CADA REFRESH
+    // Evaluar alertas por Telegram
     if (state.dashboard?.assets) {
       checkAndSendTelegramAlerts(state.dashboard.assets, state.dashboard.settings, state.config);
     }
