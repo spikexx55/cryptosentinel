@@ -22,5 +22,8 @@
   },
   "notificationsEnabled": true,
   "botToken": "8906710488:AAEYHSSkZX3g5EQvhaSwRv5ffIsPTicABkw",
-  "chatId": "914453268"
+  "chatId": "914453268",
+  "ownedSymbols": [
+    "BTC"
+  ]
 }
