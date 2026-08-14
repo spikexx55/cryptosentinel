@@ -3,6 +3,9 @@ const url = require('url');
 const dashboard = require('./dashboard');
 const configHandler = require('./configHandler');
 const telegram = require('./telegram');
+const alertHandler = require('./telegram/alert');
+
+app.post('/api/telegram/alert', alertHandler);
 
 module.exports = async (req, res) => {
   const p = url.parse(req.url).pathname;
