@@ -2,17 +2,23 @@ const BINANCE = 'https://api.binance.com/api/v3';
 const CRYPTOCOMPARE = 'https://min-api.cryptocompare.com/data';
 const COINGECKO = 'https://api.coingecko.com/api/v3';
 
-// Mapa de IDs para CoinGecko por si cae ahí como 3er intento
 const CG_IDS = {
   BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', XRP: 'ripple',
   ADA: 'cardano', DOGE: 'dogecoin', AVAX: 'avalanche-2', LINK: 'chainlink'
 };
 
-async function fetchJson(url, timeout = 9000) {
+// Timeout reducido a 3s para pasar rápido al siguiente proveedor si uno falla
+async function fetchJson(url, timeout = 3000) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    const res = await fetch(url, { 
+      headers: { 
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }, 
+      signal: controller.signal 
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } finally { clearTimeout(t); }
@@ -26,56 +32,57 @@ function fallbackCandles(symbol) {
   return Array.from({length:240}, (_,i)=>{ const drift = Math.sin(i/13 + symbol.charCodeAt(0)) * .011 + .001; const open = price; price *= 1 + drift; return { time: Date.now() - (239 - i)*3600000, open, high: Math.max(open,price)*1.008, low: Math.min(open,price)*.992, close: price, volume: base * (600 + (i%21)*35) }; });
 }
 
-// 1. Candlesticks en cascada: Binance -> CryptoCompare -> CoinGecko -> Fallback
 async function candles(symbol) {
-  // Intento 1: Binance
+  // 1. Binance
   try {
     const rows = await fetchJson(`${BINANCE}/klines?symbol=${symbol}USDT&interval=1h&limit=240`);
     return rows.map(r=>({ time: r[0], open: +r[1], high:+r[2], low:+r[3], close:+r[4], volume:+r[5] }));
   } catch {}
 
-  // Intento 2: CryptoCompare
+  // 2. CryptoCompare (Muy fiable desde Vercel)
   try {
     const data = await fetchJson(`${CRYPTOCOMPARE}/v2/histohour?fsym=${symbol}&tsym=USD&limit=239`);
-    if (data.Response === 'Success' && data.Data && data.Data.Data) {
+    if (data && data.Data && data.Data.Data && data.Data.Data.length > 0) {
       return data.Data.Data.map(r=>({ time: r.time * 1000, open: +r.open, high: +r.high, low: +r.low, close: +r.close, volume: +r.volumeto }));
     }
   } catch {}
 
-  // Intento 3: CoinGecko
+  // 3. CoinGecko
   try {
     const cgId = CG_IDS[symbol] || symbol.toLowerCase();
     const data = await fetchJson(`${COINGECKO}/coins/${cgId}/ohlc?vs_currency=usd&days=10`);
-    if (Array.isArray(data)) {
+    if (Array.isArray(data) && data.length > 0) {
       return data.map(r=>({ time: r[0], open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[4] * 1000 }));
     }
   } catch {}
 
-  // Fallback local como último recurso
   return fallbackCandles(symbol);
 }
 
-// 2. Ticker en cascada: Binance -> CryptoCompare -> CoinGecko
 async function ticker(symbol) {
-  // Intento 1: Binance
+  // 1. Binance
   try {
     const t = await fetchJson(`${BINANCE}/ticker/24hr?symbol=${symbol}USDT`);
     return { symbol, price: +t.lastPrice, change24h: +t.priceChangePercent, volume24h: +t.quoteVolume, source: 'Binance', updatedAt: Date.now() };
   } catch {}
 
-  // Intento 2: CryptoCompare
+  // 2. CryptoCompare
   try {
     const data = await fetchJson(`${CRYPTOCOMPARE}/pricemultifull?fsyms=${symbol}&tsyms=USD`);
-    const t = data.RAW[symbol].USD;
-    return { symbol, price: +t.PRICE, change24h: +t.CHANGEPCT24HOUR, volume24h: +t.VOLUME24HOURTO, source: 'CryptoCompare', updatedAt: Date.now() };
+    if (data && data.RAW && data.RAW[symbol] && data.RAW[symbol].USD) {
+      const t = data.RAW[symbol].USD;
+      return { symbol, price: +t.PRICE, change24h: +t.CHANGEPCT24HOUR, volume24h: +t.VOLUME24HOURTO, source: 'CryptoCompare', updatedAt: Date.now() };
+    }
   } catch {}
 
-  // Intento 3: CoinGecko
+  // 3. CoinGecko
   try {
     const cgId = CG_IDS[symbol] || symbol.toLowerCase();
     const data = await fetchJson(`${COINGECKO}/simple/price?ids=${cgId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`);
-    const t = data[cgId];
-    return { symbol, price: +t.usd, change24h: +t.usd_24h_change, volume24h: +t.usd_24h_vol, source: 'CoinGecko', updatedAt: Date.now() };
+    if (data && data[cgId]) {
+      const t = data[cgId];
+      return { symbol, price: +t.usd, change24h: +t.usd_24h_change, volume24h: +t.usd_24h_vol, source: 'CoinGecko', updatedAt: Date.now() };
+    }
   } catch {}
 
   return null;
